@@ -22,10 +22,13 @@ import {
   ArrowDown,
   CalendarClock,
   Copy,
-  Eye
+  Eye,
+  Pin,
+  PinOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Order, OrderStatus, DashboardStats } from '../types';
+import OrderDrawer from './OrderDrawer';
 
 const MOCK_ORDERS: Order[] = [
   { id: '1', number: 'REQ-10/04/2026-011', title: 'Manutenção Preventiva - Ar Condicionado', type: 'SERVICE', company: 'AlplaPLASTICO', plant: 'Viana 1', department: 'Logística', deadline: '2025-11-04', status: 'APROVADO', value: 1677502.81, currency: 'AOA' },
@@ -138,6 +141,8 @@ export default function Dashboard() {
   const [filterType, setFilterType] = useState<string>('all');
   const [sortConfig, setSortConfig] = useState<{ key: keyof Order | null, direction: 'asc' | 'desc' }>({ key: null, direction: 'asc' });
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [isFloating, setIsFloating] = useState(true);
 
   const handleSort = (key: keyof Order) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -186,14 +191,43 @@ export default function Dashboard() {
       {/* Header */}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Pedidos de Compras e Pagamentos</h1>
+          <div className="flex items-center gap-3 mb-1">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Pedidos de Compras e Pagamentos</h1>
+            <button 
+              onClick={() => setIsFloating(!isFloating)}
+              className={`p-1.5 rounded-md transition-colors flex items-center gap-1.5 text-xs font-medium border ${isFloating ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+              title={isFloating ? "Desativar modo flutuante" : "Ativar modo flutuante"}
+            >
+              {isFloating ? <Pin size={14} /> : <PinOff size={14} />}
+              <span className="hidden sm:inline">{isFloating ? 'Flutuante Ativo' : 'Flutuante Inativo'}</span>
+            </button>
+          </div>
           <p className="text-slate-500 text-sm">Gerencie e acompanhe todos os pedidos corporativos em tempo real.</p>
         </div>
-        <button className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg font-medium transition-all shadow-sm shadow-blue-200 active:scale-95">
-          <Plus size={18} />
-          Novo Pedido
-        </button>
+        {!isFloating && (
+          <button className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg font-medium transition-all shadow-sm shadow-blue-200 active:scale-95">
+            <Plus size={18} />
+            Novo Pedido
+          </button>
+        )}
       </header>
+
+      {/* Floating Action Button */}
+      <AnimatePresence>
+        {isFloating && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            className="fixed top-6 right-6 md:top-8 md:right-8 z-40"
+          >
+            <button className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-full font-medium transition-all shadow-lg shadow-blue-900/20 active:scale-95">
+              <Plus size={20} />
+              Novo Pedido
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Stats Grid */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -273,7 +307,7 @@ export default function Dashboard() {
                     </div>
                     <KebabMenu 
                       onCopy={() => console.log('Copiar', order.number)} 
-                      onView={() => console.log('Visualizar', order.number)} 
+                      onView={() => setSelectedOrder(order)} 
                     />
                   </div>
                   <h3 className="font-semibold text-slate-900 mb-2 line-clamp-1 group-hover:text-blue-600 transition-colors">{order.title}</h3>
@@ -314,8 +348,8 @@ export default function Dashboard() {
             <div className="flex bg-slate-100/80 p-1 rounded-lg w-fit border border-slate-200/50">
               {[
                 { id: 'all', label: 'Todos' },
-                { id: 'PRODUCT', label: 'Produtos' },
-                { id: 'SERVICE', label: 'Serviços' }
+                { id: 'PRODUCT', label: 'Cotações' },
+                { id: 'SERVICE', label: 'Pagamentos' }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -460,7 +494,7 @@ export default function Dashboard() {
                             <div className="inline-block">
                               <KebabMenu 
                                 onCopy={() => console.log('Copiar', order.number)} 
-                                onView={() => console.log('Visualizar', order.number)} 
+                                onView={() => setSelectedOrder(order)} 
                               />
                             </div>
                           </td>
@@ -498,19 +532,49 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Total Value Footer */}
-        <div className="flex justify-end">
-          <div className="glass-card p-4 rounded-2xl flex items-center gap-4">
-            <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
-              <ArrowUpRight size={20} />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Filtrado</p>
-              <p className="text-xl font-bold text-slate-900">AOA {STATS.totalFilteredValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+        {/* Total Value Footer (Inline) */}
+        {!isFloating && (
+          <div className="flex justify-end mt-4">
+            <div className="glass-card p-4 rounded-2xl flex items-center gap-4">
+              <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                <ArrowUpRight size={20} />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Filtrado</p>
+                <p className="text-xl font-bold text-slate-900">AOA {STATS.totalFilteredValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Total Value Footer (Floating) */}
+        <AnimatePresence>
+          {isFloating && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="fixed bottom-6 right-6 md:bottom-8 md:right-8 z-40"
+            >
+              <div className="bg-white/90 backdrop-blur-md border border-slate-200/60 p-4 rounded-2xl flex items-center gap-4 shadow-2xl shadow-slate-900/10">
+                <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                  <ArrowUpRight size={20} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Filtrado</p>
+                  <p className="text-xl font-bold text-slate-900">AOA {STATS.totalFilteredValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </section>
+
+      <OrderDrawer 
+        order={selectedOrder} 
+        isOpen={!!selectedOrder} 
+        onClose={() => setSelectedOrder(null)} 
+      />
     </div>
   );
 }
